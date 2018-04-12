@@ -1,0 +1,99 @@
+---
+title: "Estimating the posterior with a binomial likelihood"
+author:
+  - "Jeffrey Arnold"
+  - "Connor Gilroy"
+date: "2018-04-10"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+set.seed(123)
+```
+
+# Data
+
+A series of $n$ trials with $y$ successes. We're estimating the probability of success, $\theta$.
+
+```{r}
+n <- 10
+y <- 5
+```
+
+# Grid approximation
+
+Using a uniform prior. Adapted from Richard McElreath, Rethinking Statistics.
+
+```{r}
+grid_size <- 100
+p_grid <- seq(from = 0, to = 1, length.out = grid_size)
+prior <- rep(1, grid_size)
+likelihood <- dbinom(x = y, size = n, prob = p_grid)
+unstd.posterior <- likelihood * prior
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot(p_grid, posterior, type = "b")
+```
+
+# Analytic solution
+
+Writing the prior as a beta distribution, because the beta distribution is the conjugate prior distribution for the binomial likelihood. 
+
+If $\alpha = \beta = 1$, the beta distribution is uniform between 0 and 1.
+
+```{r}
+a <- 1
+b <- 1
+
+apost <- y + 1
+bpost <- n - y + 1
+
+plot(p_grid, dbeta(p_grid, apost, bpost))
+```
+
+```{r}
+nsims <- 10000
+posterior_samples <- rbeta(nsims, apost, bpost)
+mean(posterior_samples)
+median(posterior_samples)
+```
+
+# Sampling using Stan
+
+```{r}
+library("rstan")
+
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+```
+
+```{r}
+binomial_model <- stan_model("binomial.stan")
+```
+
+```{r}
+binomial_model
+```
+
+```{r}
+binomial_fit <- sampling(binomial_model, data = list(y = y, n = n))
+```
+
+You can combine `stan_model()` and `sampling()` into one step by just running `stan()`. 
+
+```{r}
+binomial_fit
+```
+
+```{r}
+plot(binomial_fit)
+```
+
+For more plotting methods, we can use the `bayesplot` package, which we will discuss in more detail later.
+
+```{r}
+library("bayesplot")
+mcmc_dens(as.array(binomial_fit), pars = "theta") + xlim(0, 1)
+```
